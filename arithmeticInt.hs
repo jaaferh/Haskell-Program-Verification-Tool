@@ -17,6 +17,7 @@ data Op = EVALDIV Expr
 type Cont = [Op] -- control stacks
 
 
+
 -- Abstract Machine
 eval :: Expr -> Cont -> Int
 eval (Val n) c = exec c n
@@ -56,6 +57,21 @@ validationMult a b e
           | (value a) * (value b) == value e = True
           | otherwise = False
 
+
+
+
+
+-------------------------------------------------------------------------
+data Nat = Zero | Succ Nat
+        deriving (Eq, Ord, Show, Read)
+
+add :: Nat -> Nat -> Nat
+add Zero n = n
+add (Succ m) n = Succ (add m n)
+
+mul :: Nat -> Nat -> Nat
+mul Zero n = Zero
+mul (Succ m) n = add (mul n m) n
 
 ------------------------------- Equalities ------------------------------
 data Statement = Less Expr

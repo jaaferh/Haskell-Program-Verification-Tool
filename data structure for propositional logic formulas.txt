@@ -1,0 +1,68 @@
+> Hi,
+> 
+> I wrote this program to work with formulas in propositional logic:
+> 
+> data Formula =
+>                | Variable Char
+>                | Not Formula | And Formula Formula | Or Formula Formula
+>                | Imply Formula Formula | Equivalent Formula Formula
+>                deriving (Eq)
+
+It would be better to have Formula only include a few basic primitives
+(And, Or and Not is a popular choice), and define the rest in terms of
+those. More on that in the answer to your second question.
+
+> instance Show Formula where
+>     show (Variable v) = [v]
+>     show (Not f)      = "~" ++ show f
+>     show (And f g)    = "(" ++ show f ++ " & " ++ show g ++ ")"
+>     show (Or f g)     = "(" ++ show f ++ " v " ++ show g ++ ")"
+>     show (Imply f g ) = "(" ++ show f ++ " -> " ++ show g ++ ")"
+>     show (Equivalent f g ) = "(" ++ show f ++ " <-> " ++ show g ++ ")"
+> 
+> To make a formula you can do something like:
+> 
+> ghci> let f = Or (Variable 'C') (And (Variable 'A') (Not (Variable 'C')))
+> ghci> f
+> (C v (A & ~C))
+> 
+> So, my questions are:
+> 
+> 1. Do you think this is an elegant solution or would you define custom 
+> operators (or, and, ->, <->) instead? Or something completely
+> different?
+
+You can still define such operators afterwards, and I think it would
+make formulas easier to read and write, for example:
+
+(<&&>) :: Formula -> Formula
+a <&&> b = And a b
+
+> 2. If I pack this code into a module how would add a new logic 
+> connective like xor or nand to Formula? Meaning, can I add another type 
+> constructor to it?
+
+If you chose a set of "primitives" capable of expressing every other
+formula, you can define xor, nand, etc. later as normal functions:
+
+nand :: Formula -> Formula -> Formula
+nand a b = Not (And a b)
+
+> 3. Is there a way to "nest" data definitions, e.g. I would like to 
+> replace the 'Variable Char' type constructor by 'Literal Char', whereas 
+> a Literal is either a Variable or a negated Variable. Literals can be 
+> negated, too.
+
+The parameters to constructors are not limited to built-in types and the
+type you are defining. So for your example, something like this would
+work:
+
+data Literal = Variable Char | NegVar Char
+
+data Formula = Literal | And .......
+
+That would of course introduce some redundancy, since `Not (Variable c)'
+and `NegVar c' would represent the same formula.
+
+Cheers,
+Daniel
