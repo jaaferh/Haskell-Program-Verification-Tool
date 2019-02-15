@@ -1,0 +1,151 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<!-- saved from url=(0068)https://mail.haskell.org/pipermail/beginners/2012-August/010423.html -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+   <title> [Haskell-beginners] The Holy Trinity of Functional Programming
+   </title>
+   <link rel="Index" href="https://mail.haskell.org/pipermail/beginners/2012-August/index.html">
+   <link rel="made" href="mailto:beginners%40haskell.org?Subject=Re%3A%20%5BHaskell-beginners%5D%20The%20Holy%20Trinity%20of%20Functional%20Programming&amp;In-Reply-To=%3CB5FEE00B53CF054AA8439027E8FE17751E62F020%40IMCMBX04.MITRE.ORG%3E">
+   <meta name="robots" content="index,nofollow">
+   
+   <link rel="Previous" href="https://mail.haskell.org/pipermail/beginners/2012-August/010436.html">
+   <link rel="Next" href="https://mail.haskell.org/pipermail/beginners/2012-August/010427.html">
+ </head>
+ <body bgcolor="#ffffff">
+   <h1>[Haskell-beginners] The Holy Trinity of Functional Programming</h1>
+    <b>Costello, Roger L.</b> 
+    <a href="mailto:beginners%40haskell.org?Subject=Re%3A%20%5BHaskell-beginners%5D%20The%20Holy%20Trinity%20of%20Functional%20Programming&amp;In-Reply-To=%3CB5FEE00B53CF054AA8439027E8FE17751E62F020%40IMCMBX04.MITRE.ORG%3E" title="[Haskell-beginners] The Holy Trinity of Functional Programming">costello at mitre.org
+       </a><br>
+    <i>Wed Aug 22 11:27:08 CEST 2012</i>
+    <p></p><ul>
+        <li>Previous message: <a href="https://mail.haskell.org/pipermail/beginners/2012-August/010436.html">[Haskell-beginners] Good style on "." and "$" pipeline?
+</a></li>
+        <li>Next message: <a href="https://mail.haskell.org/pipermail/beginners/2012-August/010427.html">[Haskell-beginners] The Holy Trinity of Functional Programming
+</a></li>
+         <li> <b>Messages sorted by:</b> 
+              <a href="https://mail.haskell.org/pipermail/beginners/2012-August/date.html#10423">[ date ]</a>
+              <a href="https://mail.haskell.org/pipermail/beginners/2012-August/thread.html#10423">[ thread ]</a>
+              <a href="https://mail.haskell.org/pipermail/beginners/2012-August/subject.html#10423">[ subject ]</a>
+              <a href="https://mail.haskell.org/pipermail/beginners/2012-August/author.html#10423">[ author ]</a>
+         </li>
+       </ul>
+    <hr>  
+<!--beginarticle-->
+<pre>Hi Folks,
+
+In Richard Bird's book (Introduction to Functional Programming using Haskell) he has a fascinating discussion on three key aspects of functional programming. Below is my summary of his discussion.  /Roger
+
+---------------------------------------------------------
+The Holy Trinity of Functional Programming
+---------------------------------------------------------
+These three ideas constitute the holy trinity of functional programming:
+
+1.  User-defined recursive data types.
+2.  Recursively defined functions over recursive data types.
+3.  Proof by induction: show that some property P(n) holds for each element of a recursive data type.
+
+Here is an example of a user-defined recursive data type. It is a declaration for the natural numbers 0, 1, 2, ...:
+
+	data Nat = Zero | Succ Nat
+
+The elements of this data type include:
+
+	Zero,  Succ Zero,  Succ (Succ Zero),  Succ (Succ (Succ Zero)),  ...
+
+To understand this, when creating a Nat value we have a choice of either Zero or Succ Nat. Suppose we choose Succ Nat. Well, now we must choose a value for the Nat in Succ Nat. Again, we have a choice of either Zero or Succ Nat. Suppose this time we choose Zero, to obtain Succ Zero.
+
+The ordering of the elements in the Nat data type can be specified by defining Nat to be a member of the Ord class:
+
+	instance Ord Nat where
+         	      Zero &lt; Zero 		=  False
+        	      Zero &lt; Succ n	=  True
+        	      Succ m &lt; Zero	=  False
+        	      Succ m &lt; Succ n 	=  (m &lt; n)
+
+Here is how the Nat version of the expression 2 &lt; 3 is evaluated:
+
+	   Succ (Succ Zero) &lt; Succ (Succ (Succ Zero))	-- Nat version of 2 &lt; 3
+
+	= Succ Zero &lt; Succ (Succ Zero)			-- by the 4th equation defining order
+
+	= Zero &lt; Succ Zero				-- by the 4th equation defining order
+
+	= True						-- by the 2nd equation defining order
+
+Here is a recursively defined function over the data type; it adds two Nat elements:
+
+	(+) :: Nat -&gt; Nat -&gt; Nat
+	m + Zero = m
+	m + Succ n = Succ(m + n)
+
+Here is how the Nat version of 0 + 1 is evaluated:
+
+	   Zero + Succ Zero				-- Nat version of 0 + 1
+
+	= Succ (Zero + Zero)				-- by the 2nd equation defining +
+
+	= Succ Zero					-- by the 1st equation defining +
+
+Here is another recursively defined function over the data type; it subtracts two Nat elements:
+
+	(-) :: Nat -&gt; Nat -&gt; Nat
+	m - Zero = m
+	Succ m - Succ n = m - n
+
+If the Nat version of 0 - 1 is executed, then the result is undefined:
+
+	Zero - Succ Zero
+
+The "undefined value" is denoted by this symbol: _|_ (also known as "bottom")
+
+Important: _|_ is an element of *every* data type.
+
+So we must expand the list of elements in Nat:
+
+	_|_,  Zero,  Succ Zero,  Succ (Succ Zero),  Succ (Succ (Succ Zero)),  ...
+
+There are still more elements of Nat. Suppose we define a function that returns a Nat. Let's call the function undefined:
+
+	undefined :: Nat
+	undefined = undefined
+
+It is an infinitely recursive function: when invoked it never stops until the program is interrupted.
+
+This function undefined is denoted by the symbol _|_
+
+Recall how we defined the ordering of values in Nat:
+
+	instance Ord Nat where
+  	      Zero &lt; Zero 		=  False
+  	      Zero &lt; Succ n	=  True
+  	      Succ m &lt; Zero	=  False
+  	      Succ m &lt; Succ n 	=  (m &lt; n)
+
+</pre>
+
+
+
+
+
+
+
+<!--endarticle-->
+    <hr>
+    <p></p><ul>
+        <!--threads-->
+	<li>Previous message: <a href="https://mail.haskell.org/pipermail/beginners/2012-August/010436.html">[Haskell-beginners] Good style on "." and "$" pipeline?
+</a></li>
+	<li>Next message: <a href="https://mail.haskell.org/pipermail/beginners/2012-August/010427.html">[Haskell-beginners] The Holy Trinity of Functional Programming
+</a></li>
+         <li> <b>Messages sorted by:</b> 
+              <a href="https://mail.haskell.org/pipermail/beginners/2012-August/date.html#10423">[ date ]</a>
+              <a href="https://mail.haskell.org/pipermail/beginners/2012-August/thread.html#10423">[ thread ]</a>
+              <a href="https://mail.haskell.org/pipermail/beginners/2012-August/subject.html#10423">[ subject ]</a>
+              <a href="https://mail.haskell.org/pipermail/beginners/2012-August/author.html#10423">[ author ]</a>
+         </li>
+       </ul>
+
+<hr>
+<a href="http://www.haskell.org/mailman/listinfo/beginners">More information about the Beginners
+mailing list</a><br>
+
+</body></html>

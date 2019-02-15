@@ -6,11 +6,14 @@ data Nat = Zero | Succ Nat
 data Expr = Val Nat
           | Mult Expr Expr
           | Add Expr Expr
+          | Sub Expr Expr
 
 data Op = EVALMULT Expr
         | EVALADD Expr
+        | EVALSUB Expr
         | MULT Nat
         | ADD Nat
+        | SUB Nat
 
 type Cont = [Op] -- control stacks
 
@@ -19,15 +22,18 @@ type Cont = [Op] -- control stacks
 -- Abstract Machine
 eval :: Expr -> Cont -> Nat
 eval (Val n) c = exec c n
-eval (Add x y) c = eval x (EVALADD y : c)
 eval (Mult x y) c = eval x (EVALMULT y : c)
+eval (Add x y) c = eval x (EVALADD y : c)
+eval (Sub x y) c = eval x (EVALSUB y : c)
 
 exec :: Cont -> Nat -> Nat
 exec [] n = n
 exec (EVALMULT y : c) n = eval y (MULT n : c)
 exec (EVALADD y : c) n = eval y (ADD n : c)
+exec (EVALSUB y : c) n = eval y (SUB n : c)
 exec (MULT n : c) m = exec c (mul n m)
 exec (ADD n : c) m = exec c (add n m)
+exec (SUB n : c) m = exec c (sub n m)
 
 
 add :: Nat -> Nat -> Nat
@@ -37,6 +43,20 @@ add (Succ m) n = Succ (add m n)
 mul :: Nat -> Nat -> Nat
 mul Zero n = Zero
 mul (Succ m) n = add (mul n m) n
+
+sub :: Nat -> Nat -> Nat
+sub n Zero = n
+sub Zero (Succ Zero) = Zero
+sub (Succ n) (Succ m) = sub n m
+
+
+-- nat2int :: Nat -> Int
+-- nat2int Zero = 0
+-- nat2int (Succ n) = 1 + nat2int n
+--
+-- int2nat :: Int -> Nat
+-- int2nat 0 = Zero
+-- int2nat n = Succ (int2nat (n-1))
 
 
 value :: Expr -> Nat
@@ -53,7 +73,10 @@ validationMult a b e
           | mul (value a) (value b) == value e = True
           | otherwise = False
 
-
+validationSub :: Expr -> Expr -> Expr -> Bool
+validationSub a b e
+          | sub (value a) (value b) == value e = True
+          | otherwise = False
 
 ------------------------------- Equalities ------------------------------
 data Statement = Less Expr
