@@ -17,9 +17,11 @@ data Op = EVALMULT Expr
         | ADD Nat
         | SUB Nat
 
+data Lang = If Statement Expr
+          | While Statement
+
 type Cont = [Op] -- control stacks
 
--- type Assoc v n = [(v,n)] -- associating variables to nats
 type Subst = [(Variable,Nat)] -- lookup table associates variables to nats
 
 ------------------------------- Store -----------------------------------
@@ -53,6 +55,7 @@ eval (Val n) c = exec c n
 eval (Mult x y) c = eval x (EVALMULT y : c)
 eval (Add x y) c = eval x (EVALADD y : c)
 eval (Sub x y) c = eval x (EVALSUB y : c)
+eval (Var v) c = eval (Val (find v store)) c
 
 exec :: Cont -> Nat -> Nat
 exec [] n = n
@@ -78,15 +81,6 @@ sub Zero (Succ Zero) = Zero
 sub (Succ n) (Succ m) = sub n m
 
 
--- nat2int :: Nat -> Int
--- nat2int Zero = 0
--- nat2int (Succ n) = 1 + nat2int n
---
--- int2nat :: Int -> Nat
--- int2nat 0 = Zero
--- int2nat n = Succ (int2nat (n-1))
-
-
 value :: Expr -> Nat
 value e = eval e []
 
@@ -105,6 +99,15 @@ validationSub :: Expr -> Expr -> Expr -> Bool
 validationSub a b e
   | sub (value a) (value b) == value e = True
   | otherwise = False
+
+
+-- nat2int :: Nat -> Int
+-- nat2int Zero = 0
+-- nat2int (Succ n) = 1 + nat2int n
+--
+-- int2nat :: Int -> Nat
+-- int2nat 0 = Zero
+-- int2nat n = Succ (int2nat (n-1))
 
 ------------------------------- Equalities ------------------------------
 data Statement = Less Expr
@@ -130,16 +133,3 @@ evalStatement _ (T) = True
 --   | evalStatement x p = evalStatement x' q
 --   | otherwise = False
 --     where x' = value s
---
---
--- a :: Nat
--- a = (Succ Zero)
---
--- preCon :: Statement
--- preCon = Equal (Val (Succ Zero))
---
--- postCon :: Statement
--- postCon = Equal (Val (Succ (Succ Zero)))
---
--- program :: Expr
--- program = Add (Val a) (Val (Succ Zero))
