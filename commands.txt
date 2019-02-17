@@ -1,0 +1,8 @@
+value ( Add (Val (Succ Zero)) (Val (Succ Zero)) )
+
+value ( Sub (Val (Succ Zero)) (Val (Succ Zero)) )
+
+value ( Mult (Val (Succ (Succ Zero))) (Val (Succ (Succ Zero))) )
+
+
+

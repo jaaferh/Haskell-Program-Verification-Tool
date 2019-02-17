@@ -4,6 +4,7 @@ data Nat = Zero | Succ Nat
 
 
 data Expr = Val Nat
+          | U Var
           | Mult Expr Expr
           | Add Expr Expr
           | Sub Expr Expr
