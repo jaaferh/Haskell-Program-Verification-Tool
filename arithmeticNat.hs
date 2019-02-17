@@ -1,10 +1,11 @@
-------------------------------- Arithmetic ------------------------------
 data Nat = Zero | Succ Nat
-        deriving (Eq, Ord, Show, Read)
+           deriving (Eq, Ord, Show, Read)
 
+data Variable = U | V | W | X | Y | Z
+           deriving (Eq, Ord, Show, Read)
 
 data Expr = Val Nat
-          | U Var
+          | Var Variable
           | Mult Expr Expr
           | Add Expr Expr
           | Sub Expr Expr
@@ -18,8 +19,34 @@ data Op = EVALMULT Expr
 
 type Cont = [Op] -- control stacks
 
+-- type Assoc v n = [(v,n)] -- associating variables to nats
+type Subst = [(Variable,Nat)] -- lookup table associates variables to nats
+
+------------------------------- Store -----------------------------------
+
+store :: Subst
+store = [(U, Succ Zero),
+         (V, Zero),
+         (W, Succ (Succ (Succ Zero))),
+         (X, Succ (Succ Zero)),
+         (Y, Succ Zero),
+         (Z, Zero)]
+
+find :: Variable -> Subst -> Nat
+find v s = head [n | (v',n) <- s, v == v']
 
 
+delete :: Variable -> Subst -> Subst
+delete v s  = [(v',n') | (v',n') <- s, v' /= v]
+
+
+update :: Variable -> Subst -> Nat -> Subst
+update _ [] n = []
+update v (x:xs) n
+  | (fst x) == v = (v,n):xs
+  | otherwise = x:update v xs n
+
+------------------------------- Arithmetic ------------------------------
 -- Abstract Machine
 eval :: Expr -> Cont -> Nat
 eval (Val n) c = exec c n
@@ -66,18 +93,18 @@ value e = eval e []
 
 validationAdd :: Expr -> Expr -> Expr -> Bool
 validationAdd a b e
-          | add (value a) (value b) == value e = True
-          | otherwise = False
+  | add (value a) (value b) == value e = True
+  | otherwise = False
 
 validationMult :: Expr -> Expr -> Expr -> Bool
 validationMult a b e
-          | mul (value a) (value b) == value e = True
-          | otherwise = False
+  | mul (value a) (value b) == value e = True
+  | otherwise = False
 
 validationSub :: Expr -> Expr -> Expr -> Bool
 validationSub a b e
-          | sub (value a) (value b) == value e = True
-          | otherwise = False
+  | sub (value a) (value b) == value e = True
+  | otherwise = False
 
 ------------------------------- Equalities ------------------------------
 data Statement = Less Expr
@@ -98,21 +125,21 @@ evalStatement i (MoreEqual e) = i > (value e) || i == (value e)
 evalStatement _ (F) = False
 evalStatement _ (T) = True
 
-checkTriple :: Nat -> Statement -> Expr -> Statement -> Bool
-checkTriple x p s q
-  | evalStatement x p = evalStatement x' q
-  | otherwise = False
-    where x' = value s
-
-
-a :: Nat
-a = (Succ Zero)
-
-preCon :: Statement
-preCon = Equal (Val (Succ Zero))
-
-postCon :: Statement
-postCon = Equal (Val (Succ (Succ Zero)))
-
-program :: Expr
-program = Add (Val a) (Val (Succ Zero))
+-- checkTriple :: Nat -> Statement -> Expr -> Statement -> Bool
+-- checkTriple x p s q
+--   | evalStatement x p = evalStatement x' q
+--   | otherwise = False
+--     where x' = value s
+--
+--
+-- a :: Nat
+-- a = (Succ Zero)
+--
+-- preCon :: Statement
+-- preCon = Equal (Val (Succ Zero))
+--
+-- postCon :: Statement
+-- postCon = Equal (Val (Succ (Succ Zero)))
+--
+-- program :: Expr
+-- program = Add (Val a) (Val (Succ Zero))
