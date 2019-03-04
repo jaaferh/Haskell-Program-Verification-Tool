@@ -2,13 +2,14 @@ data Nat = Zero | Succ Nat
            deriving (Eq, Ord, Show, Read)
 
 data Variable = U | V | W | X | Y | Z
-           deriving (Eq, Ord, Show, Read)
+                deriving (Eq, Ord, Show, Read)
 
 data Expr = Val Nat
           | Var Variable
           | Mult Expr Expr
           | Add Expr Expr
           | Sub Expr Expr
+          deriving (Eq, Ord, Show, Read)
 
 data Op = EVALMULT Expr
         | EVALADD Expr
@@ -17,32 +18,37 @@ data Op = EVALMULT Expr
         | ADD Nat
         | SUB Nat
 
-data Lang = If Statement Expr
-          | While Statement
 
 type Cont = [Op] -- control stacks
 
-type Subst = [(Variable,Nat)] -- lookup table associates variables to nats
+type Store = [(Variable,Expr)] -- lookup table associates variables to nats
 
 ------------------------------- Store -----------------------------------
 
-store :: Subst
-store = [(U, Succ Zero),
-         (V, Zero),
-         (W, Succ (Succ (Succ Zero))),
-         (X, Succ (Succ Zero)),
-         (Y, Succ Zero),
-         (Z, Zero)]
+store :: Store
+store = [(U, Val (Succ Zero)),
+         (V, Val (Zero)),
+         (W, Val (Succ (Succ (Succ Zero)))),
+         (X, Val (Succ (Succ Zero))),
+         (Y, Val (Succ Zero)),
+         (Z, Val (Zero))]
 
-find :: Variable -> Subst -> Nat
+store2 = [(U, Val (Zero)),
+          (V, Val (Zero)),
+          (W, Val (Zero)),
+          (X, Val (Succ Zero)),
+          (Y, Val (Zero)),
+          (Z, Val (Zero))]
+
+find :: Variable -> Store -> Expr
 find v s = head [n | (v',n) <- s, v == v']
 
 
-delete :: Variable -> Subst -> Subst
+delete :: Variable -> Store -> Store
 delete v s  = [(v',n') | (v',n') <- s, v' /= v]
 
 
-update :: Variable -> Subst -> Nat -> Subst
+update :: Variable -> Store -> Expr -> Store
 update _ [] n = []
 update v (x:xs) n
   | (fst x) == v = (v,n):xs
@@ -50,21 +56,21 @@ update v (x:xs) n
 
 ------------------------------- Arithmetic ------------------------------
 -- Abstract Machine
-eval :: Expr -> Cont -> Nat
-eval (Val n) c = exec c n
-eval (Mult x y) c = eval x (EVALMULT y : c)
-eval (Add x y) c = eval x (EVALADD y : c)
-eval (Sub x y) c = eval x (EVALSUB y : c)
-eval (Var v) c = eval (Val (find v store)) c
+eval :: Expr -> Store -> Cont -> Nat
+eval (Val n) s c = exec c s n
+eval (Mult x y) s c = eval x s (EVALMULT y : c)
+eval (Add x y) s c = eval x s (EVALADD y : c)
+eval (Sub x y) s c = eval x s (EVALSUB y : c)
+eval (Var v) s c = eval (find v s) s c
 
-exec :: Cont -> Nat -> Nat
-exec [] n = n
-exec (EVALMULT y : c) n = eval y (MULT n : c)
-exec (EVALADD y : c) n = eval y (ADD n : c)
-exec (EVALSUB y : c) n = eval y (SUB n : c)
-exec (MULT n : c) m = exec c (mul n m)
-exec (ADD n : c) m = exec c (add n m)
-exec (SUB n : c) m = exec c (sub n m)
+exec :: Cont -> Store -> Nat -> Nat
+exec [] _ n = n
+exec (EVALMULT y : c) s n = eval y s (MULT n : c)
+exec (EVALADD y : c) s n = eval y s (ADD n : c)
+exec (EVALSUB y : c) s n = eval y s (SUB n : c)
+exec (MULT n : c) s m = exec c s (mul n m)
+exec (ADD n : c) s m = exec c s (add n m)
+exec (SUB n : c) s m = exec c s (sub n m)
 
 
 add :: Nat -> Nat -> Nat
@@ -81,55 +87,81 @@ sub Zero (Succ Zero) = Zero
 sub (Succ n) (Succ m) = sub n m
 
 
-value :: Expr -> Nat
-value e = eval e []
+value :: Expr -> Store -> Nat
+value e s = eval e s []
 
 
-validationAdd :: Expr -> Expr -> Expr -> Bool
-validationAdd a b e
-  | add (value a) (value b) == value e = True
-  | otherwise = False
-
-validationMult :: Expr -> Expr -> Expr -> Bool
-validationMult a b e
-  | mul (value a) (value b) == value e = True
-  | otherwise = False
-
-validationSub :: Expr -> Expr -> Expr -> Bool
-validationSub a b e
-  | sub (value a) (value b) == value e = True
-  | otherwise = False
-
-
--- nat2int :: Nat -> Int
--- nat2int Zero = 0
--- nat2int (Succ n) = 1 + nat2int n
+-- validationAdd :: Expr -> Expr -> Expr -> Bool
+-- validationAdd a b e
+--   | add (value a s) (value b s) == value e = True
+--   | otherwise = False
 --
--- int2nat :: Int -> Nat
--- int2nat 0 = Zero
--- int2nat n = Succ (int2nat (n-1))
+-- validationMult :: Expr -> Expr -> Expr -> Bool
+-- validationMult a b e
+--   | mul (value a) (value b) == value e = True
+--   | otherwise = False
+--
+-- validationSub :: Expr -> Expr -> Expr -> Bool
+-- validationSub a b e
+--   | sub (value a) (value b) == value e = True
+--   | otherwise = False
+
+
 
 ------------------------------- Equalities ------------------------------
-data Statement = Less Expr
-               | LessEqual Expr
-               | Equal Expr
-               | More Expr
-               | MoreEqual Expr
+data Statement = Less Expr Expr
+               | LessEqual Expr Expr
+               | Equal Expr Expr
+               | More Expr Expr
+               | MoreEqual Expr Expr
                | F
                | T
 
 
-evalStatement :: Nat -> Statement -> Bool
-evalStatement i (Less e) = i < (value e)
-evalStatement i (LessEqual e) = i < (value e) || i == (value e)
-evalStatement i (Equal e) = i == (value e)
-evalStatement i (More e) = i > (value e)
-evalStatement i (MoreEqual e) = i > (value e) || i == (value e)
-evalStatement _ (F) = False
-evalStatement _ (T) = True
+evalStatement :: Statement -> Store -> Bool
+evalStatement (Less w z) s = (value w s) < (value z s)
+evalStatement (LessEqual w z) s = (value w s) < (value z s) || (value w s) == (value z s)
+evalStatement (Equal w z) s = (value w s) == (value z s)
+evalStatement (More w z) s = (value w s) > (value z s)
+evalStatement (MoreEqual w z) s = (value w s) > (value z s) || (value w s) == (value z s)
+evalStatement F _ = False
+evalStatement T _ = True
 
--- checkTriple :: Nat -> Statement -> Expr -> Statement -> Bool
--- checkTriple x p s q
---   | evalStatement x p = evalStatement x' q
---   | otherwise = False
---     where x' = value s
+
+------------------------------- Language ------------------------------
+
+data Lang = If Statement Lang
+          | While Statement Lang
+          | Assign Variable Expr
+
+command :: Lang -> Store -> Store
+command (Assign v e) s = update v s (Val (value e s))
+command (If x l) s
+  | evalStatement x s = command l s
+  | otherwise = s
+command (While x l) s
+  | evalStatement x s = command (While x l) s'
+  | otherwise = s
+    where s' = command l s
+
+------------------------------- Triple --------------------------------
+
+triple :: Statement -> Statement -> Store -> Lang -> Bool
+triple p q s l
+  | evalStatement p s = evalStatement p s'
+  | otherwise = False
+    where s' = command l s
+
+
+
+pre :: Statement
+pre = More (Var X) (Val Zero)
+
+post :: Statement
+post = Equal (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))
+
+com1 :: Lang
+com1 = Assign (X) (Val (Succ Zero))
+
+com2 :: Lang
+com2 = While (Less (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))) (Assign (X) (Add (Var X) (Val (Succ Zero))))
