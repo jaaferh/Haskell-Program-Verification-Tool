@@ -90,22 +90,13 @@ sub (Succ n) (Succ m) = sub n m
 value :: Expr -> Store -> Nat
 value e s = eval e s []
 
+nat2int :: Nat -> Int
+nat2int Zero = 0
+nat2int (Succ n) = 1 + nat2int n
 
--- validationAdd :: Expr -> Expr -> Expr -> Bool
--- validationAdd a b e
---   | add (value a s) (value b s) == value e = True
---   | otherwise = False
---
--- validationMult :: Expr -> Expr -> Expr -> Bool
--- validationMult a b e
---   | mul (value a) (value b) == value e = True
---   | otherwise = False
---
--- validationSub :: Expr -> Expr -> Expr -> Bool
--- validationSub a b e
---   | sub (value a) (value b) == value e = True
---   | otherwise = False
-
+int2nat :: Int -> Nat
+int2nat 0 = Zero
+int2nat n = Succ (int2nat (n-1))
 
 
 ------------------------------- Equalities ------------------------------
@@ -130,19 +121,22 @@ evalStatement T _ = True
 
 ------------------------------- Language ------------------------------
 
-data Lang = If Statement Lang
+data Lang = Assign Variable Expr
+          | If Statement Lang Lang
           | While Statement Lang
-          | Assign Variable Expr
+          | Order Lang Lang
 
-command :: Lang -> Store -> Store
-command (Assign v e) s = update v s (Val (value e s))
-command (If x l) s
-  | evalStatement x s = command l s
+inter :: Lang -> Store -> Store
+inter (Assign v e) s = update v s (Val (value e s))
+inter (If x l1 l2) s
+  | evalStatement x s = inter l1 s
+  | otherwise = inter l2 s
+inter (While x l) s
+  | evalStatement x s = inter (While x l) s'
   | otherwise = s
-command (While x l) s
-  | evalStatement x s = command (While x l) s'
-  | otherwise = s
-    where s' = command l s
+    where s' = inter l s
+inter (Order l1 l2) s = inter l2 s'
+  where s' = inter l1 s
 
 ------------------------------- Triple --------------------------------
 
@@ -150,7 +144,7 @@ triple :: Statement -> Statement -> Store -> Lang -> Bool
 triple p q s l
   | evalStatement p s = evalStatement p s'
   | otherwise = False
-    where s' = command l s
+    where s' = inter l s
 
 
 
@@ -160,8 +154,14 @@ pre = More (Var X) (Val Zero)
 post :: Statement
 post = Equal (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))
 
-com1 :: Lang
-com1 = Assign (X) (Val (Succ Zero))
+eg_assign :: Lang
+eg_assign = Assign (X) (Val (Succ Zero))
 
-com2 :: Lang
-com2 = While (Less (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))) (Assign (X) (Add (Var X) (Val (Succ Zero))))
+eg_while :: Lang
+eg_while = While (Less (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))) (Assign (X) (Add (Var X) (Val (Succ Zero))))
+
+eg_order :: Lang
+eg_order = Order (Assign (Z) (Add (Var Z) (Val (Succ Zero)))) (Order (Assign (Y) (Add (Var Y) (Var Z))) (Assign (V) (Add (Var V) (Var Y))))
+
+eg_if :: Lang
+eg_if = If (Equal (Var X) (Val (Succ(Zero)))) (Assign (X) (Val (Zero))) (If (Less (Var U) (Var V)) (Assign (V) (Val (Succ Zero))) (Assign (V) (Val (Succ(Succ Zero) ))))
