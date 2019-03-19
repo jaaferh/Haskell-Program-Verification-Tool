@@ -120,11 +120,12 @@ evalStatement T _ = True
 
 
 ------------------------------- Language ------------------------------
+-- data a *->* b = Left a | Right b
 
 data Lang = Assign Variable Expr
           | If Statement Lang Lang
           | While Statement Lang
-          | Order Lang Lang
+          | Seq Lang Lang
 
 inter :: Lang -> Store -> Store
 inter (Assign v e) s = update v s (Val (value e s))
@@ -135,7 +136,7 @@ inter (While x l) s
   | evalStatement x s = inter (While x l) s'
   | otherwise = s
     where s' = inter l s
-inter (Order l1 l2) s = inter l2 s'
+inter (Seq l1 l2) s = inter l2 s'
   where s' = inter l1 s
 
 ------------------------------- Triple --------------------------------
@@ -160,8 +161,8 @@ eg_assign = Assign (X) (Val (Succ Zero))
 eg_while :: Lang
 eg_while = While (Less (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))) (Assign (X) (Add (Var X) (Val (Succ Zero))))
 
-eg_order :: Lang
-eg_order = Order (Assign (Z) (Add (Var Z) (Val (Succ Zero)))) (Order (Assign (Y) (Add (Var Y) (Var Z))) (Assign (V) (Add (Var V) (Var Y))))
+eg_seq :: Lang
+eg_seq = Seq (Assign (Z) (Add (Var Z) (Val (Succ Zero)))) (Seq (Assign (Y) (Add (Var Y) (Var Z))) (Assign (V) (Add (Var V) (Var Y))))
 
 eg_if :: Lang
 eg_if = If (Equal (Var X) (Val (Succ(Zero)))) (Assign (X) (Val (Zero))) (If (Less (Var U) (Var V)) (Assign (V) (Val (Succ Zero))) (Assign (V) (Val (Succ(Succ Zero) ))))
