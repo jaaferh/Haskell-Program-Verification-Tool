@@ -23,6 +23,7 @@ type Cont = [Op] -- control stacks
 
 type Store = [(Variable,Expr)] -- lookup table associates variables to nats
 
+type Stores = [Store]
 ------------------------------- Store -----------------------------------
 
 store :: Store
@@ -33,12 +34,15 @@ store = [(U, Val (Succ Zero)),
          (Y, Val (Succ Zero)),
          (Z, Val (Zero))]
 
-store2 = [(U, Val (Zero)),
-          (V, Val (Zero)),
-          (W, Val (Zero)),
-          (X, Val (Succ Zero)),
-          (Y, Val (Zero)),
-          (Z, Val (Zero))]
+store2 = [(U, Val (Succ Zero)),
+         (V, Val (Succ (Succ (Succ Zero)))),
+         (W, Val (Succ Zero)),
+         (X, Val (Succ (Succ Zero))),
+         (Y, Val (Zero)),
+         (Z, Val (Succ Zero))]
+
+stores :: Stores
+stores = [store,store2]
 
 find :: Variable -> Store -> Expr
 find v s = head [n | (v',n) <- s, v == v']
@@ -136,8 +140,8 @@ inter (While x l) s
   | evalStatement x s = inter (While x l) s'
   | otherwise = s
     where s' = inter l s
-inter (Seq l1 l2) s = inter l2 s'
-  where s' = inter l1 s
+inter (Seq l1 l2) s = inter l1 s'
+  where s' = inter l2 s
 
 ------------------------------- Triple --------------------------------
 
@@ -147,13 +151,20 @@ triple p q s l
   | otherwise = False
     where s' = inter l s
 
+triple_recursion :: Statement -> Statement -> Stores -> Lang -> Bool
+triple_recursion p q (x:xs) l
+  | triple p q [] l = True
+  | triple p q x l = triple_recursion p q xs l
+  | otherwise = False
 
+-- pre :: Statement
+-- pre = More (Var X) (Val Zero)
 
-pre :: Statement
-pre = More (Var X) (Val Zero)
+-- post :: Statement
+-- post = Equal (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))
 
 post :: Statement
-post = Equal (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))
+post = Equal (Var X) (Var V)
 
 eg_assign :: Lang
 eg_assign = Assign (X) (Val (Succ Zero))
@@ -162,7 +173,10 @@ eg_while :: Lang
 eg_while = While (Less (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))) (Assign (X) (Add (Var X) (Val (Succ Zero))))
 
 eg_seq :: Lang
-eg_seq = Seq (Assign (Z) (Add (Var Z) (Val (Succ Zero)))) (Seq (Assign (Y) (Add (Var Y) (Var Z))) (Assign (V) (Add (Var V) (Var Y))))
+eg_seq = Seq (Assign (Z) (Add (Var Z) (Var V))) (Seq (Assign (Z) (Add (Var Y) (Var Z))) (Assign (V) (Add (Var V) (Var Y))))
 
 eg_if :: Lang
 eg_if = If (Equal (Var X) (Val (Succ(Zero)))) (Assign (X) (Val (Zero))) (If (Less (Var U) (Var V)) (Assign (V) (Val (Succ Zero))) (Assign (V) (Val (Succ(Succ Zero) ))))
+
+swap_vars :: Lang
+swap_vars = Seq (Assign (Y) (Var Z)) (Seq (Assign (X) (Var Y)) (Seq (Assign (V) (Var Y)) (Assign (Z) (Var X))))
