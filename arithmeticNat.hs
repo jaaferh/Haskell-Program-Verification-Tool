@@ -130,6 +130,7 @@ data Statement = Less Expr Expr
                | Equal Expr Expr
                | More Expr Expr
                | MoreEqual Expr Expr
+               | Not Statement
                | F
                | T
 
@@ -141,6 +142,7 @@ evalStatement (LessEqual w z) s = (value w s) < (value z s) || (value w s) == (v
 evalStatement (Equal w z) s = (value w s) == (value z s)
 evalStatement (More w z) s = (value w s) > (value z s)
 evalStatement (MoreEqual w z) s = (value w s) > (value z s) || (value w s) == (value z s)
+evalStatement (Not stmt) s = not (evalStatement stmt s)
 evalStatement F _ = False
 evalStatement T _ = True
 
@@ -148,7 +150,7 @@ evalPost :: Statements -> Store -> Bool
 evalPost [] s = True
 evalPost (x:xs) s
   |evalStatement x s = evalPost xs s
-  |otherwise = False
+  |otherwise = error "Post condition could not be reached"
 
 
 ------------------------------- Language ------------------------------
@@ -173,12 +175,6 @@ inter (Seq l1 l2) s = inter l1 s'
 
 ------------------------------- Triple --------------------------------
 
--- triple :: Statement -> Statement -> Store -> Lang -> Bool
--- triple p q s l
---   | evalStatement p s = evalStatement q s'
---   | otherwise = False
---     where s' = inter l s
---
 triple :: Statements -> Statements -> Store -> Lang -> Bool
 triple [] q s l = evalPost q s'
   where s' = inter l s
@@ -190,20 +186,38 @@ triple_recursion :: Statements -> Statements -> Stores -> Lang -> Bool
 triple_recursion p q [] l = True
 triple_recursion p q (x:xs) l
   | triple p q x l = triple_recursion p q xs l
-  | otherwise = False
+  | otherwise = triple_recursion p q xs l
 
-pre :: Statement
-pre = More (Var X) (Val Zero)
+-- Swap_Vars pre and post
+pre_swap :: Statement
+pre_swap = Equal (Var X) (Val (Succ (Succ Zero)))
 
--- post :: Statement
--- post = Equal (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))
+pre_swap2 :: Statement
+pre_swap2 = Equal (Var Y) (Val (Succ Zero))
 
-post :: Statement
-post = Equal (Var X) (Var V)
+post_swap :: Statement
+post_swap = Equal (Var Y) (Val (Succ (Succ Zero)))
 
-post2 :: Statement
-post2 = Equal (Var Y) (Var Z)
+post_swap2 :: Statement
+post_swap2 = Equal (Var X) (Val (Succ Zero))
 
+swap_vars :: Lang
+swap_vars = Seq (Assign (Y) (Var Z)) (Seq (Assign (X) (Var Y)) (Seq (Assign (V) (Var Y)) (Assign (Z) (Var X))))
+
+-- Divide x by y pre and post
+pre_div :: Statement
+pre_div = More (Var Y) (Val Zero)
+
+pre_div2 :: Statement
+pre_div2 = More (Var X) (Var Y)
+
+post_div :: Statement
+post_div = Equal (Var X) (Mult (Var V) (Var Y))
+
+div_vars :: Lang
+div_vars = Assign (V) (Div (Var X) (Var Y))
+
+-- Test commands
 eg_assign :: Lang
 eg_assign = Assign (X) (Val (Succ Zero))
 
@@ -215,6 +229,3 @@ eg_seq = Seq (Assign (Z) (Add (Var Z) (Var V))) (Seq (Assign (Z) (Add (Var Y) (V
 
 eg_if :: Lang
 eg_if = If (Equal (Var X) (Val (Succ(Zero)))) (Assign (X) (Val (Zero))) (If (Less (Var U) (Var V)) (Assign (V) (Val (Succ Zero))) (Assign (V) (Val (Succ(Succ Zero) ))))
-
-swap_vars :: Lang
-swap_vars = Seq (Assign (Y) (Var Z)) (Seq (Assign (X) (Var Y)) (Seq (Assign (V) (Var Y)) (Assign (Z) (Var X))))
