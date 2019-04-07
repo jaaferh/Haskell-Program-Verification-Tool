@@ -34,8 +34,8 @@ store :: Store
 store = [(U, Val (Succ Zero)),
          (V, Val (Zero)),
          (W, Val (Succ (Succ (Succ Zero)))),
-         (X, Val (Succ (Succ Zero))),
-         (Y, Val (Succ Zero)),
+         (X, Val (int2nat 21)),
+         (Y, Val (int2nat 5)),
          (Z, Val (Zero))]
 
 store2 = [(U, Val (Succ Zero)),
@@ -104,11 +104,11 @@ n_div n f c
   | otherwise = n_div n' f (add (c) (Succ Zero))
     where n' = d_sub n f c
 
-d_sub :: Nat -> Nat -> Nat -> Nat
+-- This function is exactly the same as sub, but preserves the counter
+d_sub :: Nat -> Nat -> Nat -> Nat -- number, factor, counter
 d_sub Zero _ _ = Zero
 d_sub n Zero _ = n
 d_sub (Succ n) (Succ m) c = d_sub n m c
--- d_sub Zero (Succ Zero) c = Zero
 
 
 -- PROBLEM: Rounds up decimals when it shouldnt.
@@ -131,6 +131,7 @@ data Statement = Less Expr Expr
                | More Expr Expr
                | MoreEqual Expr Expr
                | Not Statement
+               | And Statement Statement
                | F
                | T
 
@@ -143,6 +144,9 @@ evalStatement (Equal w z) s = (value w s) == (value z s)
 evalStatement (More w z) s = (value w s) > (value z s)
 evalStatement (MoreEqual w z) s = (value w s) > (value z s) || (value w s) == (value z s)
 evalStatement (Not stmt) s = not (evalStatement stmt s)
+evalStatement (And stmt1 stmt2) s
+  | evalStatement stmt1 s = evalStatement stmt2 s
+  | otherwise = False
 evalStatement F _ = False
 evalStatement T _ = True
 
@@ -188,6 +192,9 @@ triple_recursion p q (x:xs) l
   | triple p q x l = triple_recursion p q xs l
   | otherwise = triple_recursion p q xs l
 
+--evalStatement (Equal (Var X) (Mult (Var Y) (Val (int2nat 4)))) store
+-- triple_recursion [pre_div, pre_div2] [post_div] stores div_vars
+
 -- Swap_Vars pre and post
 pre_swap :: Statement
 pre_swap = Equal (Var X) (Val (Succ (Succ Zero)))
@@ -216,6 +223,13 @@ post_div = Equal (Var X) (Mult (Var V) (Var Y))
 
 div_vars :: Lang
 div_vars = Assign (V) (Div (Var X) (Var Y))
+
+-- Divide using while loop
+div_while :: Lang
+div_while = Seq (If (And (Not (Equal (Var Z) (Val Zero))) (Less (Var Z) (Var Y))) (Assign (U) (Var Z)) (Assign (U) (Val Zero))) (Seq (While (MoreEqual (Var Z) (Var Y)) (Seq (Assign (V) (Add (Var V) (Val (Succ Zero)))) (Assign (Z) (Sub (Var Z) (Var Y))))) (Seq (Assign (Z) (Var X)) (Assign (V) (Val Zero))))
+
+post_div_while :: Statement
+post_div_while = Equal (Var X) (Add (Mult (Var V) (Var Y)) (Var U))
 
 -- Test commands
 eg_assign :: Lang
