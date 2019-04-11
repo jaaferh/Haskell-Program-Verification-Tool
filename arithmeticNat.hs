@@ -1,11 +1,17 @@
+------------------------------- Data types --------------------------------
+
 data Nat = Zero | Succ Nat
            deriving (Eq, Ord, Show, Read)
 
 data Variable = U | V | W | X | Y | Z
                 deriving (Eq, Ord, Show, Read)
 
+data SymVar = M | N | O | P
+              deriving (Eq, Ord, Show, Read)
+
 data Expr = Val Nat
           | Var Variable
+          | Sym SymVar
           | Mult Expr Expr
           | Div Expr Expr
           | Add Expr Expr
@@ -28,12 +34,13 @@ type Cont = [Op] -- control stacks
 type Store = [(Variable,Expr)] -- lookup table associates variables to nats
 
 type Stores = [Store]
+
 ------------------------------- Store -----------------------------------
 
 store :: Store
 store = [(U, Val (Succ Zero)),
          (V, Val (Zero)),
-         (W, Val (Succ (Succ (Succ Zero)))),
+         (W, Sub (Sym M) (Sym N)),
          (X, Val (int2nat 21)),
          (Y, Val (int2nat 5)),
          (Z, Val (Zero))]
@@ -47,6 +54,7 @@ store2 = [(U, Val (Succ Zero)),
 
 stores :: Stores
 stores = [store,store2]
+
 
 find :: Variable -> Store -> Expr
 find v s = head [n | (v',n) <- s, v == v']
@@ -63,6 +71,7 @@ update v (x:xs) n
   | otherwise = x:update v xs n
 
 ------------------------------- Arithmetic ------------------------------
+
 -- Abstract Machine
 eval :: Expr -> Store -> Cont -> Nat
 eval (Val n) s c = exec c s n
@@ -125,6 +134,7 @@ int2nat 0 = Zero
 int2nat n = Succ (int2nat (n-1))
 
 ------------------------------- Equalities ------------------------------
+
 data Statement = Less Expr Expr
                | LessEqual Expr Expr
                | Equal Expr Expr
@@ -156,8 +166,44 @@ evalPost (x:xs) s
   |evalStatement x s = evalPost xs s
   |otherwise = error "Post condition could not be reached"
 
+evalSym :: Statement -> Store -> Bool
+evalSym (Equal (Var w) (Var z)) s = (simplify (Var w) s) == (simplify (Var z) s)
+evalSym (Equal (Sym w) (Var z)) s = (Sym w) == (simplify (Var z) s)
+evalSym (Equal (Var w) (Sym z)) s = (simplify (Var w) s) == (Sym z)
+evalSym (Equal w z) s = simplify w s == simplify z s
+
+simpPost :: Statements -> Store -> Bool
+simpPost [] s = True
+simpPost (x:xs) s
+  |evalSym x s = simpPost xs s
+  |otherwise = error "Post condition could not be reached"
+
+-- evalSym (Equal (Sym M) (Add (Sym N) (Var V))) store
+
+------------------------ Simplifying Expressions ---------------------------
+
+simplify :: Expr -> Store -> Expr
+simplify (Add (Var v) x) s = simplify (Add (find v s) x) s
+simplify (Add x (Var v)) s = simplify (Add x (find v s)) s
+simplify (Sub (Var v) x) s = simplify (Sub (find v s) x) s
+simplify (Sub x (Var v)) s = simplify (Sub x (find v s)) s
+simplify (Add x (Sub y v)) s
+  |v == x = simplify y s
+  |y == v = simplify x s
+  |otherwise = Val Zero
+simplify (Sub x (Add y z)) s
+  |z == x = simplify y s
+  |x == y = simplify z s
+  |otherwise = Val Zero
+simplify (Val x) s = (Val x)
+simplify (Var x) s = simplify (find x s) s
+simplify (Sym x) s = (Sym x)
+simplify x s = x
+
+
 
 ------------------------------- Language ------------------------------
+
 -- data a *->* b = Left a | Right b
 
 data Lang = Assign Variable Expr
@@ -191,6 +237,17 @@ triple_recursion p q [] l = True
 triple_recursion p q (x:xs) l
   | triple p q x l = triple_recursion p q xs l
   | otherwise = triple_recursion p q xs l
+
+triple_sym :: Statements -> Statements -> Store -> Lang -> Bool
+triple_sym [] q s l = simpPost q s'
+  where s' = inter l s
+triple_sym p@(x:xs) q s l
+  |evalStatement x s = triple_sym xs q s l
+  |otherwise = False
+
+-- triple_sym [T] [Equal (Sym M) (Add (Sym N) (Var V))] store (Assign (V) (Sub (Sym M) (Sym N)))
+
+------------------------------- Variables --------------------------------
 
 --evalStatement (Equal (Var X) (Mult (Var Y) (Val (int2nat 4)))) store
 -- triple_recursion [pre_div, pre_div2] [post_div] stores div_vars
