@@ -41,16 +41,23 @@ store :: Store
 store = [(U, Val (Succ Zero)),
          (V, Val (Zero)),
          (W, Sub (Sym M) (Sym N)),
-         (X, Val (int2nat 21)),
+         (X, Val (int2nat 20)),
          (Y, Val (int2nat 5)),
          (Z, Val (Zero))]
 
 store2 = [(U, Val (Succ Zero)),
-         (V, Val (Succ (Succ (Succ Zero)))),
-         (W, Val (Succ Zero)),
-         (X, Val (Succ (Succ Zero))),
-         (Y, Val (Zero)),
-         (Z, Val (Succ Zero))]
+          (V, Val (Succ (Succ (Succ Zero)))),
+          (W, Val (Succ Zero)),
+          (X, Val (Succ (Succ Zero))),
+          (Y, Val (Zero)),
+          (Z, Val (Succ Zero))]
+
+store3 = [(U, Val (Succ Zero)),
+          (V, Val (Succ (Succ (Succ Zero)))),
+          (W, Val (Succ Zero)),
+          (X, Sym M),
+          (Y, Sym N),
+          (Z, Val (Succ Zero))]
 
 stores :: Stores
 stores = [store,store2]
@@ -185,8 +192,10 @@ simpPost (x:xs) s
 simplify :: Expr -> Store -> Expr
 simplify (Add (Var v) x) s = simplify (Add (find v s) x) s
 simplify (Add x (Var v)) s = simplify (Add x (find v s)) s
+simplify (Add (Val x) (Val y)) s = Val (value (Add (Val x) (Val y)) s)
 simplify (Sub (Var v) x) s = simplify (Sub (find v s) x) s
 simplify (Sub x (Var v)) s = simplify (Sub x (find v s)) s
+simplify (Sub (Val x) (Val y)) s = Val (value (Sub (Val x) (Val y)) s)
 simplify (Add x (Sub y v)) s
   |v == x = simplify y s
   |y == v = simplify x s
@@ -200,7 +209,12 @@ simplify (Var x) s = simplify (find x s) s
 simplify (Sym x) s = (Sym x)
 simplify x s = x
 
-
+hasSym :: Expr -> Store -> Bool
+hasSym (Sym x) s = True
+hasSym (Add x y) s = True
+hasSym (Sub x y) s = True
+hasSym (Val x) s = False
+hasSym e s = False
 
 ------------------------------- Language ------------------------------
 
@@ -212,7 +226,10 @@ data Lang = Assign Variable Expr
           | Seq Lang Lang
 
 inter :: Lang -> Store -> Store
-inter (Assign v e) s = update v s (Val (value e s))
+-- inter (Assign v e) s = update v s (Val (value e s))
+inter (Assign v e) s
+  | hasSym (simplify e s) s = update v s (simplify e s)
+  | otherwise = update v s (Val (value e s))
 inter (If x l1 l2) s
   | evalStatement x s = inter l1 s
   | otherwise = inter l2 s
@@ -222,6 +239,8 @@ inter (While x l) s
     where s' = inter l s
 inter (Seq l1 l2) s = inter l1 s'
   where s' = inter l2 s
+
+--inter (Assign (V) (Sub (Sym M) (Sym N))) store
 
 ------------------------------- Triple --------------------------------
 
@@ -242,7 +261,7 @@ triple_sym :: Statements -> Statements -> Store -> Lang -> Bool
 triple_sym [] q s l = simpPost q s'
   where s' = inter l s
 triple_sym p@(x:xs) q s l
-  |evalStatement x s = triple_sym xs q s l
+  |evalSym x s = triple_sym xs q s l
   |otherwise = False
 
 -- triple_sym [T] [Equal (Sym M) (Add (Sym N) (Var V))] store (Assign (V) (Sub (Sym M) (Sym N)))
@@ -268,6 +287,25 @@ post_swap2 = Equal (Var X) (Val (Succ Zero))
 swap_vars :: Lang
 swap_vars = Seq (Assign (Y) (Var Z)) (Seq (Assign (X) (Var Y)) (Seq (Assign (V) (Var Y)) (Assign (Z) (Var X))))
 
+
+-- Swap vars sym variables
+pre_swap_sym :: Statement
+pre_swap_sym = Equal (Var X) (Sym M)
+
+pre_swap_sym2 :: Statement
+pre_swap_sym2 = Equal (Var Y) (Sym N)
+
+post_swap_sym :: Statement
+post_swap_sym = Equal (Var X) (Sym N)
+
+post_swap_sym2 :: Statement
+post_swap_sym2 = Equal (Var Y) (Sym M)
+
+swap_vars_sym :: Lang
+swap_vars_sym = Seq (Assign (Y) (Var V)) (Seq (Assign (X) (Var Y)) (Assign (V) (Var X)))
+
+-- triple_sym [pre_swap_sym,pre_swap_sym2] [post_swap_sym,post_swap_sym2] store3 swap_vars_sym
+
 -- Divide x by y pre and post
 pre_div :: Statement
 pre_div = More (Var Y) (Val Zero)
@@ -281,12 +319,14 @@ post_div = Equal (Var X) (Mult (Var V) (Var Y))
 div_vars :: Lang
 div_vars = Assign (V) (Div (Var X) (Var Y))
 
+
 -- Divide using while loop
 div_while :: Lang
 div_while = Seq (If (And (Not (Equal (Var Z) (Val Zero))) (Less (Var Z) (Var Y))) (Assign (U) (Var Z)) (Assign (U) (Val Zero))) (Seq (While (MoreEqual (Var Z) (Var Y)) (Seq (Assign (V) (Add (Var V) (Val (Succ Zero)))) (Assign (Z) (Sub (Var Z) (Var Y))))) (Seq (Assign (Z) (Var X)) (Assign (V) (Val Zero))))
 
 post_div_while :: Statement
 post_div_while = Equal (Var X) (Add (Mult (Var V) (Var Y)) (Var U))
+
 
 -- Test commands
 eg_assign :: Lang
