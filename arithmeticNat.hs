@@ -1,13 +1,13 @@
 ------------------------------- Data types --------------------------------
 
 data Nat = Zero | Succ Nat
-           deriving (Eq, Ord, Show, Read)
+           deriving (Eq, Ord, Show)
 
 data Variable = U | V | W | X | Y | Z
-                deriving (Eq, Ord, Show, Read)
+                deriving (Eq, Ord, Show)
 
 data SymVar = M | N | O | P
-              deriving (Eq, Ord, Show, Read)
+              deriving (Eq, Ord, Show)
 
 data Expr = Val Nat
           | Var Variable
@@ -16,7 +16,7 @@ data Expr = Val Nat
           | Div Expr Expr
           | Add Expr Expr
           | Sub Expr Expr
-          deriving (Eq, Ord, Show, Read)
+          deriving (Eq, Ord, Show)
 
 data Op = EVALMULT Expr
         | EVALDIV Expr
@@ -31,47 +31,47 @@ data Op = EVALMULT Expr
 
 type Cont = [Op] -- control stacks
 
-type Store = [(Variable,Expr)] -- lookup table associates variables to nats
+type State = [(Variable,Expr)] -- lookup table associates variables to nats
 
-type Stores = [Store]
+type States = [State]
 
-------------------------------- Store -----------------------------------
+------------------------------- State -----------------------------------
 
-store :: Store
-store = [(U, Val (Succ Zero)),
+state1 :: State
+state1 = [(U, Val (Succ Zero)),
          (V, Val (Zero)),
          (W, Sub (Sym M) (Sym N)),
-         (X, Val (int2nat 20)),
+         (X, Val (int2nat 21)),
          (Y, Val (int2nat 5)),
          (Z, Val (Zero))]
 
-store2 = [(U, Val (Succ Zero)),
+state2 = [(U, Val (Succ Zero)),
           (V, Val (Succ (Succ (Succ Zero)))),
           (W, Val (Succ Zero)),
           (X, Val (Succ (Succ Zero))),
-          (Y, Val (Zero)),
-          (Z, Val (Succ Zero))]
+          (Y, Val (Succ Zero)),
+          (Z, Val (Zero))]
 
-store3 = [(U, Val (Succ Zero)),
+state3 = [(U, Val (Succ Zero)),
           (V, Val (Succ (Succ (Succ Zero)))),
           (W, Val (Succ Zero)),
           (X, Sym M),
           (Y, Sym N),
           (Z, Val (Succ Zero))]
 
-stores :: Stores
-stores = [store,store2]
+states :: States
+states = [state1,state2]
 
 
-find :: Variable -> Store -> Expr
+find :: Variable -> State -> Expr
 find v s = head [n | (v',n) <- s, v == v']
 
 
-delete :: Variable -> Store -> Store
+delete :: Variable -> State -> State
 delete v s  = [(v',n') | (v',n') <- s, v' /= v]
 
 
-update :: Variable -> Store -> Expr -> Store
+update :: Variable -> State -> Expr -> State
 update _ [] n = []
 update v (x:xs) n
   | (fst x) == v = (v,n):xs
@@ -80,7 +80,7 @@ update v (x:xs) n
 ------------------------------- Arithmetic ------------------------------
 
 -- Abstract Machine
-eval :: Expr -> Store -> Cont -> Nat
+eval :: Expr -> State -> Cont -> Nat
 eval (Val n) s c = exec c s n
 eval (Mult x y) s c = eval x s (EVALMULT y : c)
 eval (Div x y) s c = eval x s (EVALDIV y : c)
@@ -88,7 +88,7 @@ eval (Add x y) s c = eval x s (EVALADD y : c)
 eval (Sub x y) s c = eval x s (EVALSUB y : c)
 eval (Var v) s c = eval (find v s) s c
 
-exec :: Cont -> Store -> Nat -> Nat
+exec :: Cont -> State -> Nat -> Nat
 exec [] _ n = n
 exec (EVALMULT y : c) s n = eval y s (MULT n : c)
 exec (EVALDIV y : c) s n = eval y s (DIV n : c)
@@ -129,8 +129,8 @@ d_sub (Succ n) (Succ m) c = d_sub n m c
 
 -- PROBLEM: Rounds up decimals when it shouldnt.
 
-value :: Expr -> Store -> Nat
-value e s = eval e s []
+expr_sem :: Expr -> State -> Nat
+expr_sem e s = eval e s []
 
 nat2int :: Nat -> Int
 nat2int Zero = 0
@@ -154,122 +154,137 @@ data Statement = Less Expr Expr
 
 type Statements = [Statement]
 
-evalStatement :: Statement -> Store -> Bool
-evalStatement (Less w z) s = (value w s) < (value z s)
-evalStatement (LessEqual w z) s = (value w s) < (value z s) || (value w s) == (value z s)
-evalStatement (Equal w z) s = (value w s) == (value z s)
-evalStatement (More w z) s = (value w s) > (value z s)
-evalStatement (MoreEqual w z) s = (value w s) > (value z s) || (value w s) == (value z s)
-evalStatement (Not stmt) s = not (evalStatement stmt s)
-evalStatement (And stmt1 stmt2) s
-  | evalStatement stmt1 s = evalStatement stmt2 s
+stmt_sem :: Statement -> State -> Bool
+stmt_sem (Less w z) s = (expr_sem w s) < (expr_sem z s)
+stmt_sem (LessEqual w z) s = (expr_sem w s) < (expr_sem z s) || (expr_sem w s) == (expr_sem z s)
+stmt_sem (Equal w z) s = (expr_sem w s) == (expr_sem z s)
+stmt_sem (More w z) s = (expr_sem w s) > (expr_sem z s)
+stmt_sem (MoreEqual w z) s = (expr_sem w s) > (expr_sem z s) || (expr_sem w s) == (expr_sem z s)
+stmt_sem (Not stmt) s = not (stmt_sem stmt s)
+stmt_sem (And stmt1 stmt2) s
+  | stmt_sem stmt1 s = stmt_sem stmt2 s
   | otherwise = False
-evalStatement F _ = False
-evalStatement T _ = True
+stmt_sem F _ = False
+stmt_sem T _ = True
 
-evalPost :: Statements -> Store -> Bool
-evalPost [] s = True
-evalPost (x:xs) s
-  |evalStatement x s = evalPost xs s
+stmt_post :: Statements -> State -> Bool
+stmt_post [] s = True
+stmt_post (x:xs) s
+  |stmt_sem x s = stmt_post xs s
   |otherwise = error "Post condition could not be reached"
 
-evalSym :: Statement -> Store -> Bool
-evalSym (Equal (Var w) (Var z)) s = (simplify (Var w) s) == (simplify (Var z) s)
-evalSym (Equal (Sym w) (Var z)) s = (Sym w) == (simplify (Var z) s)
-evalSym (Equal (Var w) (Sym z)) s = (simplify (Var w) s) == (Sym z)
-evalSym (Equal w z) s = simplify w s == simplify z s
+stmt_sem_sym :: Statement -> State -> Bool
+stmt_sem_sym (Equal (Var w) (Var z)) s = (simplify (Var w) s) == (simplify (Var z) s)
+stmt_sem_sym (Equal (Sym w) (Var z)) s = (Sym w) == (simplify (Var z) s)
+stmt_sem_sym (Equal (Var w) (Sym z)) s = (simplify (Var w) s) == (Sym z)
+stmt_sem_sym (Equal w z) s = simplify w s == simplify z s
+stmt_sem_sym T s = True
+stmt_sem_sym F s = False
 
-simpPost :: Statements -> Store -> Bool
-simpPost [] s = True
-simpPost (x:xs) s
-  |evalSym x s = simpPost xs s
+stmt_post_sym :: Statements -> State -> Bool
+stmt_post_sym [] s = True
+stmt_post_sym (x:xs) s
+  |stmt_sem_sym x s = stmt_post_sym xs s
   |otherwise = error "Post condition could not be reached"
 
--- evalSym (Equal (Sym M) (Add (Sym N) (Var V))) store
+-- stmt_sem_sym (Equal (Sym M) (Add (Sym N) (Var V))) state
 
 ------------------------ Simplifying Expressions ---------------------------
 
-simplify :: Expr -> Store -> Expr
+simplify :: Expr -> State -> Expr
 simplify (Add (Var v) x) s = simplify (Add (find v s) x) s
 simplify (Add x (Var v)) s = simplify (Add x (find v s)) s
-simplify (Add (Val x) (Val y)) s = Val (value (Add (Val x) (Val y)) s)
+simplify (Add (Val x) (Val y)) s = Val (expr_sem (Add (Val x) (Val y)) s)
+simplify (Add x (Sub y z)) s
+  |z == x = simplify y s
+  |y == z = simplify x s
+  |x == y = simplify (Sub (Add x y) (z)) s
+  |otherwise = Add (simplify x s) (simplify (Sub y z) s)
+simplify (Add x y) s = Add (simplify x s) (simplify y s)
 simplify (Sub (Var v) x) s = simplify (Sub (find v s) x) s
 simplify (Sub x (Var v)) s = simplify (Sub x (find v s)) s
-simplify (Sub (Val x) (Val y)) s = Val (value (Sub (Val x) (Val y)) s)
-simplify (Add x (Sub y v)) s
-  |v == x = simplify y s
-  |y == v = simplify x s
-  |otherwise = Val Zero
+simplify (Sub (Val x) (Val y)) s = Val (expr_sem (Sub (Val x) (Val y)) s)
 simplify (Sub x (Add y z)) s
   |z == x = simplify y s
   |x == y = simplify z s
-  |otherwise = Val Zero
+  |otherwise = Sub (simplify x s) (simplify (Add y z) s)
+simplify (Sub x y) s = Sub (simplify x s) (simplify y s)
 simplify (Val x) s = (Val x)
 simplify (Var x) s = simplify (find x s) s
 simplify (Sym x) s = (Sym x)
 simplify x s = x
 
-hasSym :: Expr -> Store -> Bool
+hasSym :: Expr -> State -> Bool
 hasSym (Sym x) s = True
 hasSym (Add x y) s = True
 hasSym (Sub x y) s = True
 hasSym (Val x) s = False
 hasSym e s = False
 
+--simplify (Add (Add (Sym N) (Val (Succ Zero))) (Sym M))
+
 ------------------------------- Language ------------------------------
 
 -- data a *->* b = Left a | Right b
 
-data Lang = Assign Variable Expr
-          | If Statement Lang Lang
-          | While Statement Lang
-          | Seq Lang Lang
+data Com = Assign Variable Expr
+          | If Statement Com Com
+          | While Statement Com
+          | Seq Com Com
 
-inter :: Lang -> Store -> Store
--- inter (Assign v e) s = update v s (Val (value e s))
-inter (Assign v e) s
+com_sem :: Com -> State -> State
+com_sem (Assign v e) s
   | hasSym (simplify e s) s = update v s (simplify e s)
-  | otherwise = update v s (Val (value e s))
-inter (If x l1 l2) s
-  | evalStatement x s = inter l1 s
-  | otherwise = inter l2 s
-inter (While x l) s
-  | evalStatement x s = inter (While x l) s'
+  | otherwise = update v s (Val (expr_sem e s))
+com_sem (If x c1 c2) s
+  | stmt_sem x s = com_sem c1 s
+  | otherwise = com_sem c2 s
+com_sem (While x c) s
+  | stmt_sem x s = com_sem (While x c) s'
   | otherwise = s
-    where s' = inter l s
-inter (Seq l1 l2) s = inter l1 s'
-  where s' = inter l2 s
+    where s' = com_sem c s
+com_sem (Seq c1 c2) s = com_sem c1 s'
+    where s' = com_sem c2 s
 
---inter (Assign (V) (Sub (Sym M) (Sym N))) store
+--com_sem (Assign (V) (Sub (Sym M) (Sym N))) state
 
-------------------------------- Triple --------------------------------
+------------------------------- h_sem --------------------------------
 
-triple :: Statements -> Statements -> Store -> Lang -> Bool
-triple [] q s l = evalPost q s'
-  where s' = inter l s
-triple p@(x:xs) q s l
-  |evalStatement x s = triple xs q s l
+h_sem :: Statements -> Com -> Statements -> State -> Bool
+h_sem [] c q s = stmt_post q s'
+  where s' = com_sem c s
+h_sem p@(x:xs) c q s
+  |stmt_sem x s = h_sem xs c q s
   |otherwise = False
 
-triple_recursion :: Statements -> Statements -> Stores -> Lang -> Bool
-triple_recursion p q [] l = True
-triple_recursion p q (x:xs) l
-  | triple p q x l = triple_recursion p q xs l
-  | otherwise = triple_recursion p q xs l
+h_sem_recursion :: Statements -> Com -> Statements -> States -> Bool
+h_sem_recursion p c q [] = True
+h_sem_recursion p c q (x:xs)
+  | h_sem p c q x  = h_sem_recursion p c q xs
+  | otherwise = h_sem_recursion p c q xs
 
-triple_sym :: Statements -> Statements -> Store -> Lang -> Bool
-triple_sym [] q s l = simpPost q s'
-  where s' = inter l s
-triple_sym p@(x:xs) q s l
-  |evalSym x s = triple_sym xs q s l
-  |otherwise = False
+h_sem_sym :: Statements -> Com -> Statements -> State -> Bool
+h_sem_sym [] c q s = stmt_post_sym q s'
+  where s' = com_sem c s
+h_sem_sym p@(x:xs) c q s
+  | stmt_sem_sym x s = h_sem_sym xs c q s
+  | otherwise = False
 
--- triple_sym [T] [Equal (Sym M) (Add (Sym N) (Var V))] store (Assign (V) (Sub (Sym M) (Sym N)))
+h_sem1 :: (State -> Bool) -> (State -> State) -> (State -> Bool) -> State -> Bool
+h_sem1 p c q s
+  | p s = q s'
+  | otherwise = False
+    where s' = c s
+
+--test (stmt_sem pre_swap) (com_sem swap_vars) (stmt_sem post_swap) state
+
+-- h_sem [pre_swap,pre_swap2] [post_swap,post_swap2] state swap_vars
+-- h_sem_sym [T] [Equal (Sym M) (Add (Sym N) (Var V))] state (Assign (V) (Sub (Sym M) (Sym N)))
 
 ------------------------------- Variables --------------------------------
 
---evalStatement (Equal (Var X) (Mult (Var Y) (Val (int2nat 4)))) store
--- triple_recursion [pre_div, pre_div2] [post_div] stores div_vars
+-- stmt_sem (Equal (Var X) (Mult (Var Y) (Val (int2nat 4)))) state
+-- h_sem_recursion [pre_div, pre_div2] div_vars [post_div] states
 
 -- Swap_Vars pre and post
 pre_swap :: Statement
@@ -284,9 +299,10 @@ post_swap = Equal (Var Y) (Val (Succ (Succ Zero)))
 post_swap2 :: Statement
 post_swap2 = Equal (Var X) (Val (Succ Zero))
 
-swap_vars :: Lang
-swap_vars = Seq (Assign (Y) (Var Z)) (Seq (Assign (X) (Var Y)) (Seq (Assign (V) (Var Y)) (Assign (Z) (Var X))))
+swap_vars :: Com
+swap_vars = Seq (Assign (Y) (Var Z)) (Seq (Assign (X) (Var Y)) (Assign (Z) (Var X)))
 
+-- h_sem_recursion [pre_swap,pre_swap2] swap_vars [post_swap,post_swap2] states
 
 -- Swap vars sym variables
 pre_swap_sym :: Statement
@@ -301,10 +317,10 @@ post_swap_sym = Equal (Var X) (Sym N)
 post_swap_sym2 :: Statement
 post_swap_sym2 = Equal (Var Y) (Sym M)
 
-swap_vars_sym :: Lang
-swap_vars_sym = Seq (Assign (Y) (Var V)) (Seq (Assign (X) (Var Y)) (Assign (V) (Var X)))
+swap_vars_sym :: Com
+swap_vars_sym = Seq (Assign (Y) (Var V)) (Seq (Assign (X) (Var Y)) (Assign (Z) (Var X)))
 
--- triple_sym [pre_swap_sym,pre_swap_sym2] [post_swap_sym,post_swap_sym2] store3 swap_vars_sym
+-- h_sem_sym [pre_swap_sym,pre_swap_sym2] [post_swap_sym,post_swap_sym2] state3 swap_vars_sym
 
 -- Divide x by y pre and post
 pre_div :: Statement
@@ -316,12 +332,12 @@ pre_div2 = More (Var X) (Var Y)
 post_div :: Statement
 post_div = Equal (Var X) (Mult (Var V) (Var Y))
 
-div_vars :: Lang
+div_vars :: Com
 div_vars = Assign (V) (Div (Var X) (Var Y))
 
 
 -- Divide using while loop
-div_while :: Lang
+div_while :: Com
 div_while = Seq (If (And (Not (Equal (Var Z) (Val Zero))) (Less (Var Z) (Var Y))) (Assign (U) (Var Z)) (Assign (U) (Val Zero))) (Seq (While (MoreEqual (Var Z) (Var Y)) (Seq (Assign (V) (Add (Var V) (Val (Succ Zero)))) (Assign (Z) (Sub (Var Z) (Var Y))))) (Seq (Assign (Z) (Var X)) (Assign (V) (Val Zero))))
 
 post_div_while :: Statement
@@ -329,14 +345,14 @@ post_div_while = Equal (Var X) (Add (Mult (Var V) (Var Y)) (Var U))
 
 
 -- Test commands
-eg_assign :: Lang
+eg_assign :: Com
 eg_assign = Assign (X) (Val (Succ Zero))
 
-eg_while :: Lang
+eg_while :: Com
 eg_while = While (Less (Var X) (Val (Succ (Succ (Succ (Succ Zero)))))) (Assign (X) (Add (Var X) (Val (Succ Zero))))
 
-eg_seq :: Lang
+eg_seq :: Com
 eg_seq = Seq (Assign (Z) (Add (Var Z) (Var V))) (Seq (Assign (Z) (Add (Var Y) (Var Z))) (Assign (V) (Add (Var V) (Var Y))))
 
-eg_if :: Lang
+eg_if :: Com
 eg_if = If (Equal (Var X) (Val (Succ(Zero)))) (Assign (X) (Val (Zero))) (If (Less (Var U) (Var V)) (Assign (V) (Val (Succ Zero))) (Assign (V) (Val (Succ(Succ Zero) ))))
