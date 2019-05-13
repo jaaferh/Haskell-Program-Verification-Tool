@@ -305,9 +305,14 @@ post_swap_sym2 :: Statement
 post_swap_sym2 = Equal (Var Y) (Sym M)
 
 swap_vars_sym :: Com
-swap_vars_sym = Seq (Assign (Y) (Var V)) (Seq (Assign (X) (Var Y)) (Assign (Z) (Var X)))
+swap_vars_sym = Seq (Assign (Y) (Var Z)) (Seq (Assign (X) (Var Y)) (Assign (Z) (Var X)))
 
--- h_sem_sym [pre_swap_sym,pre_swap_sym2] [post_swap_sym,post_swap_sym2] state3 swap_vars_sym
+-- h_sem_sym [pre_swap_sym,pre_swap_sym2] swap_vars_sym [post_swap_sym,post_swap_sym2] state3
+
+swap_vars_sym_f :: Com
+swap_vars_sym_f = Seq (Assign (Y) (Var V)) (Seq (Assign (X) (Var Y)) (Assign (Z) (Var X)))
+
+-- h_sem_sym [pre_swap_sym,pre_swap_sym2] swap_vars_sym_f [post_swap_sym,post_swap_sym2] state3
 
 -- Divide x by y pre and post
 pre_div :: Statement
@@ -329,3 +334,5 @@ div_while = Seq (If (And (Not (Equal (Var Z) (Val Zero))) (Less (Var Z) (Var Y))
 
 post_div_while :: Statement
 post_div_while = Equal (Var X) (Add (Mult (Var V) (Var Y)) (Var U))
+
+-- h_sem_recursion [pre_div,pre_div2] div_while [post_div_while] states
